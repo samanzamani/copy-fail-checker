@@ -41,7 +41,7 @@ Every Linux distribution that ships a kernel built since 2017 with `algif_aead` 
 
 ```bash
 # Download the script
-curl -fsSLO https://raw.githubusercontent.com/<your-user>/copy-fail-checker/main/check-copy-fail.sh
+curl -fsSLO https://raw.githubusercontent.com/samanzamani/copy-fail-checker/main/check-copy-fail.sh
 
 # Make it executable
 chmod +x check-copy-fail.sh
@@ -53,7 +53,7 @@ chmod +x check-copy-fail.sh
 Or clone the repo:
 
 ```bash
-git clone https://github.com/<your-user>/copy-fail-checker.git
+git clone https://github.com/samanzamani/copy-fail-checker.git
 cd copy-fail-checker
 ./check-copy-fail.sh
 ```
