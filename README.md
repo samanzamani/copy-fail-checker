@@ -83,13 +83,14 @@ If your distribution is not in the table, the script falls back to the runtime c
 
 ### 2. `algif_aead` module status
 
-The script inspects three things without modifying anything:
+The script inspects four things without modifying anything:
 
 - Whether the module is **currently loaded** (`lsmod`)
 - Whether the module is **available to load** (`modinfo`)
 - Whether the module is **blacklisted** in `/etc/modprobe.d`, `/usr/lib/modprobe.d`, or `/run/modprobe.d`
+- Whether the module is **builtin** in `/boot/config-<uname>` or `/proc/config.gz`
 
-A blacklisted-and-unloaded module closes the attack surface even on an unpatched kernel.
+A blacklisted, unloaded and not built-in module closes the attack surface even on an unpatched kernel.
 
 ### 3. `AF_ALG` socket reachability
 
@@ -131,6 +132,7 @@ Example output:
   "patched_version": "",
   "kernel_status": "unknown",
   "module_loaded": 0,
+  "module_builtin": 0,
   "module_available": 1,
   "module_blacklisted": 0,
   "af_alg_status": "reachable"
@@ -169,6 +171,14 @@ echo "install algif_aead /bin/false" | sudo tee /etc/modprobe.d/disable-algif-ae
 
 # Unload it from the running kernel right now
 sudo rmmod algif_aead 2>/dev/null || true
+```
+
+If the module is built-in, blacklisting will not work but it is possible to disable the initcall. A reboot is necessary.
+
+```bash
+sudo grubby --update-kernel=ALL --args="initcall_blacklist=algif_aead_init"
+
+sudo reboot
 ```
 
 For containerized workloads, also block the `AF_ALG` socket family from your seccomp profile so a compromised container cannot reach the kernel surface.
