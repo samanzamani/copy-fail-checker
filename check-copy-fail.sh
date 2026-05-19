@@ -23,7 +23,7 @@
 #   2. Checks whether the running kernel version is at or above the known
 #      patched version for the detected distribution.
 #   3. Checks the runtime status of the `algif_aead` kernel module
-#      (loaded / available / blacklisted).
+#      (loaded / available / blacklisted / builtin).
 #   4. Checks whether the AF_ALG socket family is reachable from userspace.
 #   5. Prints a final verdict: VULNERABLE / MITIGATED / PATCHED / UNKNOWN.
 #
@@ -174,6 +174,7 @@ log_head "Check 2 / 3 — algif_aead kernel module"
 MODULE_LOADED=0
 MODULE_AVAILABLE=0
 MODULE_BLACKLISTED=0
+MODULE_BUILTIN=0
 
 if lsmod 2>/dev/null | awk '{print $1}' | grep -qx "algif_aead"; then
     MODULE_LOADED=1
@@ -192,7 +193,19 @@ if grep -RhsE '^[[:space:]]*(blacklist[[:space:]]+algif_aead|install[[:space:]]+
     MODULE_BLACKLISTED=1
 fi
 
-if [ "$MODULE_LOADED" -eq 1 ]; then
+KCONFIG=""
+if [ -r "/boot/config-$(uname -r)" ]; then
+    KCONFIG="/boot/config-$(uname -r)"
+elif [ -r /proc/config.gz ]; then
+    KCONFIG="/proc/config.gz"
+fi
+if [ -n "$KCONFIG" ] && zgrep -q '^CONFIG_CRYPTO_USER_API_AEAD=y' "$KCONFIG" 2>/dev/null; then
+    MODULE_BUILTIN=1
+fi
+
+if [ "$MODULE_BUILTIN" -eq 1 ]; then
+    log_bad "algif_aead is built-in in the running kernel. It cannot be disabled using modprobe nor blacklisted."
+elif [ "$MODULE_LOADED" -eq 1 ]; then
     log_bad "algif_aead is currently loaded into the running kernel."
 elif [ "$MODULE_BLACKLISTED" -eq 1 ]; then
     log_ok "algif_aead is blacklisted and not currently loaded."
@@ -254,10 +267,10 @@ fi
 
 # ----- Final verdict ---------------------------------------------------------
 # Decision matrix (most specific signal wins):
-#   * Patched kernel                              -> patched
-#   * AF_ALG blocked AND module not loaded        -> mitigated
-#   * Module blacklisted AND not loaded AND no live probe -> likely_mitigated
-#   * Anything else on an unpatched / unknown kernel -> vulnerable
+#   * Patched kernel                                                       -> patched
+#   * AF_ALG blocked AND module not loaded AND not built-in                -> mitigated
+#   * Module blacklisted AND not loaded AND no live probe AND not built-in -> likely_mitigated
+#   * Anything else on an unpatched / unknown kernel                       -> vulnerable
 log_head "Verdict"
 
 VERDICT="unknown"
@@ -267,15 +280,15 @@ if [ "$KERNEL_STATUS" = "patched" ]; then
     VERDICT="patched"
     EXIT_CODE=0
     log_ok "This system appears to be PATCHED against CVE-2026-31431."
-elif [ "$AF_ALG_STATUS" = "blocked" ] && [ "$MODULE_LOADED" -eq 0 ]; then
+elif [ "$AF_ALG_STATUS" = "blocked" ] && [ "$MODULE_LOADED" -eq 0 ] && [ "$MODULE_BUILTIN" -eq 0 ]; then
     VERDICT="mitigated"
     EXIT_CODE=0
     log_ok "This system appears to be MITIGATED (AF_ALG attack surface is closed)."
-elif [ "$MODULE_BLACKLISTED" -eq 1 ] && [ "$MODULE_LOADED" -eq 0 ] && [ "$AF_ALG_STATUS" = "unknown" ]; then
+elif [ "$MODULE_BLACKLISTED" -eq 1 ] && [ "$MODULE_LOADED" -eq 0 ] && [ "$MODULE_BUILTIN" -eq 0 ] && [ "$AF_ALG_STATUS" = "unknown" ]; then
     VERDICT="likely_mitigated"
     EXIT_CODE=0
     log_ok "This system appears to be MITIGATED via algif_aead blacklist (no live AF_ALG probe was possible)."
-elif [ "$KERNEL_STATUS" = "vulnerable" ] || [ "$MODULE_LOADED" -eq 1 ] || [ "$AF_ALG_STATUS" = "reachable" ]; then
+elif [ "$KERNEL_STATUS" = "vulnerable" ] || [ "$MODULE_LOADED" -eq 1 ] || [ "$MODULE_BUILTIN" -eq 1 ] || [ "$AF_ALG_STATUS" = "reachable" ]; then
     VERDICT="vulnerable"
     EXIT_CODE=1
     log_bad "This system appears to be VULNERABLE to CVE-2026-31431."
@@ -296,6 +309,7 @@ if [ "$JSON_MODE" -eq 1 ]; then
     printf '"patched_version":"%s",'     "$PATCHED_VERSION"
     printf '"kernel_status":"%s",'       "$KERNEL_STATUS"
     printf '"module_loaded":%s,'         "$MODULE_LOADED"
+    printf '"module_builtin":%s,'        "$MODULE_BUILTIN"
     printf '"module_available":%s,'      "$MODULE_AVAILABLE"
     printf '"module_blacklisted":%s,'    "$MODULE_BLACKLISTED"
     printf '"af_alg_status":"%s"'        "$AF_ALG_STATUS"
