@@ -94,7 +94,7 @@ A blacklisted, unloaded and not built-in module closes the attack surface even o
 
 ### 3. `AF_ALG` socket reachability
 
-The most reliable signal is what an attacker would actually see. The script uses a tiny Python probe (`socket.socket(AF_ALG, SOCK_SEQPACKET, 0)`) to find out whether `AF_ALG` sockets can be created at all from an unprivileged context. The probe creates and immediately closes the socket — no crypto state, no AEAD operation, nothing exploitable.
+The most reliable signal is what an attacker would actually see. The script uses a tiny Python probe (`socket.socket(AF_ALG, SOCK_SEQPACKET, 0)` and binding) to find out whether `AF_ALG` sockets can be created  and binded from an unprivileged context. The probe creates, binds, and immediately closes the socket without leaving anything exploitable.
 
 If `python3` is not installed the probe is skipped and the verdict relies on checks 1 and 2.
 
