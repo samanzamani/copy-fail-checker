@@ -220,8 +220,8 @@ fi
 # unprivileged process calls socket(AF_ALG, ...). We test this from userspace
 # using a tiny Python probe so we observe the same behavior an attacker would.
 #
-# We deliberately do NOT trigger any AEAD operation — only the socket() call,
-# which is harmless and allocates no crypto state.
+# We deliberately do NOT trigger any impactfull AEAD operation — only the
+# socket() call and bind(), which is harmless.
 log_head "Check 3 / 3 — AF_ALG socket reachability"
 
 AF_ALG_STATUS="unknown"
@@ -233,6 +233,7 @@ AF_ALG_STATUS="unknown"
 AF_ALG_PY='import socket
 try:
     s = socket.socket(38, socket.SOCK_SEQPACKET, 0)
+    s.bind(("aead","authencesn(hmac(sha256),cbc(aes))"))
     s.close()
     print("reachable")
 except PermissionError:
@@ -250,11 +251,11 @@ if command -v python3 >/dev/null 2>&1; then
             AF_ALG_STATUS="reachable"
             ;;
         blocked_permission)
-            log_ok "AF_ALG socket creation is blocked by a security policy (seccomp/LSM/etc.)."
+            log_ok "AF_ALG socket creation or binding is blocked by a security policy (seccomp/LSM/etc.)."
             AF_ALG_STATUS="blocked"
             ;;
         blocked_oserror:*)
-            log_ok "AF_ALG socket creation failed at the kernel level ($AF_ALG_PROBE_OUTPUT)."
+            log_ok "AF_ALG socket creation or binding failed at the kernel level ($AF_ALG_PROBE_OUTPUT)."
             AF_ALG_STATUS="blocked"
             ;;
         *)
