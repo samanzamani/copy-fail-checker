@@ -220,8 +220,12 @@ fi
 # unprivileged process calls socket(AF_ALG, ...). We test this from userspace
 # using a tiny Python probe so we observe the same behavior an attacker would.
 #
-# We deliberately do NOT trigger any impactfull AEAD operation — only the
-# socket() call and bind(), which is harmless.
+# We deliberately do NOT trigger any impactful AEAD operation — only the
+# socket() call and bind(), which is harmless. Note: bind() may auto-load
+# algif_aead on systems where it is loadable but not yet loaded; on already-
+# vulnerable systems this matches what an attacker could do themselves, and
+# on properly mitigated systems (patched kernel, initcall_blacklist, or a
+# blacklisted module) no load is triggered.
 log_head "Check 3 / 3 — AF_ALG socket reachability"
 
 AF_ALG_STATUS="unknown"
